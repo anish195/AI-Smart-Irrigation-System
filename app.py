@@ -55,21 +55,71 @@ st.success(f"Suggested irrigation: {amount:.1f} mm")
 st.write(f"Estimated soil water after today: {estimated:.1f} mm")
 st.caption("The irrigation suggestion uses a simple rule based on the water-balance equation.")
 
-st.header("3. My Linear Regression model")
 
-# Train once when the app starts so it also works on Streamlit Cloud.
+st.header("3. Compare ML Models")
+
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import numpy as np
+
+from train_model import FEATURES
+
+# Train both models using simulated data
 @st.cache_resource
-def get_model():
-    from sklearn.linear_model import LinearRegression
-    from train_model import FEATURES
-    training_weather = generate_weather(days=180, seed=42)
-    training_data = simulate(training_weather, fixed_policy)
-    model = LinearRegression()
-    model.fit(training_data[FEATURES].iloc[:144],
-              training_data["Next_Day_Soil_Water"].iloc[:144])
-    return model
+def get_models():
+    weather = generate_weather(days=180, seed=42)
+    data = simulate(weather, fixed_policy)
 
-model = get_model()
+    X = data[FEATURES]
+    y = data["Next_Day_Soil_Water"]
+
+    # First 80% for training
+    X_train = X.iloc[:144]
+    X_test = X.iloc[144:]
+    y_train = y.iloc[:144]
+    y_test = y.iloc[144:]
+
+    models = {
+        "Linear Regression": LinearRegression(),
+        "Random Forest": RandomForestRegressor(
+            n_estimators=120,
+            random_state=42
+        )
+    }
+
+    results = []
+
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+
+        mae = mean_absolute_error(y_test, predictions)
+        mse = mean_squared_error(y_test, predictions)
+        rmse = np.sqrt(mse)
+
+        results.append({
+            "Model": name,
+            "MAE": round(mae, 3),
+            "MSE": round(mse, 3),
+            "RMSE": round(rmse, 3)
+        })
+
+    return models, pd.DataFrame(results), X_test, y_test
+
+
+models, results, X_test, y_test = get_models()
+
+st.subheader("Model Accuracy")
+st.dataframe(results, hide_index=True)
+
+# Let the user select the ML model
+selected_model = st.selectbox(
+    "Choose ML Model",
+    ["Linear Regression", "Random Forest"]
+)
+
+# Use values entered in Section 2
 sample = pd.DataFrame([{
     "Current_Soil_Water": current,
     "Temperature": temperature,
@@ -77,9 +127,31 @@ sample = pd.DataFrame([{
     "Rainfall": rain,
     "Irrigation": amount
 }])
-prediction = model.predict(sample)[0]
-st.write(f"Predicted next-day soil water: {prediction:.1f} mm")
-st.caption("The model is trained on simulated data when the dashboard starts. It has not been validated on real-world readings.")
+
+# Predict using selected model
+prediction = models[selected_model].predict(sample)[0]
+
+st.write("Selected Model:", selected_model)
+st.success(
+    f"Predicted Soil Water: {prediction:.2f} mm"
+)
+
+# Compare predictions with actual test values
+st.subheader("Actual vs Predicted")
+
+test_predictions = models[selected_model].predict(X_test)
+
+comparison = pd.DataFrame({
+    "Actual": y_test.to_numpy(),
+    "Predicted": test_predictions
+})
+
+st.line_chart(comparison)
+
+st.caption(
+    "Models are trained and evaluated using simulated data. "
+    "These results do not represent real farm accuracy."
+)
 
 st.header("4. Dataset")
 if st.checkbox("Show first 10 simulated readings"):
