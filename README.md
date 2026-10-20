@@ -18,7 +18,6 @@ Open a terminal inside this folder and run:
 
 ```bash
 pip install -r requirements.txt
-python train_model.py
 streamlit run app.py
 ```
 
@@ -50,7 +49,8 @@ capacity, water loss and crop thresholds are assumed. There are no physical
 sensors and I have not validated it using real agricultural data. Any water
 savings shown are simulated only.
 
+## Online dashboard
 
-##  Development Note
+Upload the source files to a public GitHub repository. In Streamlit Community Cloud, create an app using this repository, choose `app.py` as the main file, and deploy. The dashboard trains its Linear Regression model automatically on first load.
 
-This project was developed as part of my learning in Python and Machine Learning, with guidance and assistance from LLM's during development. It uses simulated sensor data and has not yet been tested on real agricultural hardware.
+To generate model files and evaluation results separately, run `python train_model.py`.

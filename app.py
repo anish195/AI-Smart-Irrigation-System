@@ -56,22 +56,30 @@ st.write(f"Estimated soil water after today: {estimated:.1f} mm")
 st.caption("The irrigation suggestion uses a simple rule based on the water-balance equation.")
 
 st.header("3. My Linear Regression model")
-model_file = Path(__file__).parent / "linear_model.joblib"
-if model_file.exists():
-    import joblib
-    model = joblib.load(model_file)
-    sample = pd.DataFrame([{
-        "Current_Soil_Water": current,
-        "Temperature": temperature,
-        "Humidity": humidity,
-        "Rainfall": rain,
-        "Irrigation": amount
-    }])
-    prediction = model.predict(sample)[0]
-    st.write(f"Predicted next-day soil water: {prediction:.1f} mm")
-    st.caption("This ML model is trained on generated data, so its accuracy is not verified on real-world readings.")
-else:
-    st.info("Run `python train_model.py` once to train the ML model.")
+
+# Train once when the app starts so it also works on Streamlit Cloud.
+@st.cache_resource
+def get_model():
+    from sklearn.linear_model import LinearRegression
+    from train_model import FEATURES
+    training_weather = generate_weather(days=180, seed=42)
+    training_data = simulate(training_weather, fixed_policy)
+    model = LinearRegression()
+    model.fit(training_data[FEATURES].iloc[:144],
+              training_data["Next_Day_Soil_Water"].iloc[:144])
+    return model
+
+model = get_model()
+sample = pd.DataFrame([{
+    "Current_Soil_Water": current,
+    "Temperature": temperature,
+    "Humidity": humidity,
+    "Rainfall": rain,
+    "Irrigation": amount
+}])
+prediction = model.predict(sample)[0]
+st.write(f"Predicted next-day soil water: {prediction:.1f} mm")
+st.caption("The model is trained on simulated data when the dashboard starts. It has not been validated on real-world readings.")
 
 st.header("4. Dataset")
 if st.checkbox("Show first 10 simulated readings"):
